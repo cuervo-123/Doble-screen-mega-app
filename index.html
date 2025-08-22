@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THE APPTV CENTRAL</title>
+  <style>
+    body { background-color: #868980; color: #3a4e6e; font-family: sans-serif; margin: 0; padding: 0; }
+    header, main, footer { padding: 1rem; }
+    #buscador { width: 100%; padding: 0.5rem; margin-bottom: 1rem; border: none; border-radius: 5px; }
+    #canales-inferiores { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0.5rem; padding: 1rem; background: #1e1f33; scroll-behavior: smooth; }
+    .canal { background: #80f077; border-radius: 10px; padding: 0.5rem 1rem; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+    .canal:hover { background: #d4d4ea; }
+    .player-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .player-container { position: relative; width: 100%; height: 30vh; background: #868980; }
+    video, .player-container iframe { width: 100%; height: 100%; object-fit: cover; }
+    .botones-panel { margin-top: 0.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    button { padding: 0.3rem 0.6rem; background:#5892bd; border: none; border-radius: 5px; color: white; cursor: pointer; }
+    button:hover { background: #5892bd; }
+    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; justify-content: center; align-items: center; z-index: 1000; }
+    .modal-content { background: #ac2c2c; padding: 1rem; border-radius: 10px; width: 80%; max-height: 80%; overflow: auto; }
+    #listaFavoritos { list-style: none; padding: 0; }
+    #listaFavoritos li { padding: 0.5rem; border-bottom: 1px solid #eeeeee; display: flex; justify-content: space-between; align-items: center; }
+    .paginacion { display: flex; justify-content: center; gap: 1rem; padding: 1rem; }
+    .modal h3 { color: black; text-align: center; }
+    .modal-content button { background: #d6d7dc; border: none; color: black; padding: 0.5rem 1rem; border-radius: 5px; cursor: pointer; }
+    .modal-content button:hover { background: #8fce00; }
+    .flecha-carrusel { position: absolute; top: 50%; transform: translateY(-50%); font-size: 2rem; color: white; background: rgba(0, 0, 0, 0.5); border: none; border-radius: 50%; width: 50px; height: 50px; cursor: pointer; z-index: 10; }
+    .flecha-izquierda { left: 5px; }
+    .flecha-derecha { right: 5px; }
+    #carrusel-wrapper { position: relative; }
+    .fullscreen-iframe { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9999 !important; background: black !important; }
+    .fullscreen-iframe-button { position: fixed; top: 10px; right: 10px; z-index: 10000; background: #fff; color: #000; border: 2px solid #000; border-radius: 5px; padding: 5px 10px; cursor: pointer; }
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
+    .tab { padding:6px 10px; border:1px solid #444; border-radius:6px; cursor:pointer; background:#2b2b2b; color:#fff; }
+    .tab.active { background:#333; }
+    .grid-split { display:grid; gap:8px; width:100%; height:100%; }
+    .site-select { max-width: 420px; width: 100%; }
+    .site-controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+    /* ====== MODO DOBLE (2 websites en pantalla completa simulada) ====== */
+    #wrapper-doble { display:none; position:fixed; inset:0; z-index: 10050; background:#000; flex-direction:column; }
+    #wrapper-doble.fullscreen-simulado { display:flex; }
+    #controles-doble { position: fixed; top: 10px; left: 10px; display: flex; gap: 8px; z-index: 10060; }
+    #controles-doble button { padding:6px 10px; border:none; border-radius:6px; background:#00ffd5; color:#000; font-weight:700; cursor:pointer; }
+    #monitor-doble { flex:1 1 auto; display:flex; width:100%; height:100%; overflow:hidden; }
+    #monitor-doble iframe { width:50%; height:100%; border:0; display:block; background:#111; opacity:0; transition:opacity .25s ease; }
+    #monitor-doble iframe.cargado { opacity:1; }
+
+    /* Mini HUD estado */
+    #statusBox {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.75);
+      color: #0f0;
+      padding: 4px 6px;
+      border-radius: 5px;
+      font: 10px/1.2 monospace;
+      max-width: 200px;
+      z-index: 99999;
+      opacity: 0.85;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Google CSE (opcional) -->
+  <script async src="https://cse.google.com/cse.js?cx=04f5ff6986fe641ad"></script>
+  <div class="gcse-search"></div>
+
+  <header>
+    <h1>THE APPTV CENTRAL</h1>
+
+    <div id="carrusel-wrapper">
+      <button class="flecha-carrusel flecha-izquierda" onclick="scrollCarrusel(-1)">⬅️</button>
+      <div id="canales-inferiores"></div>
+      <button class="flecha-carrusel flecha-derecha" onclick="scrollCarrusel(1)">➡️</button>
+    </div>
+
+    <div id="youtube-controls" style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+      <input id="youtubeSearch" type="text" placeholder="Buscar en YouTube..." style="flex: 1; padding: 0.5rem;" />
+      <button onclick="buscarYT()">🔍 Buscar</button>
+      <button onclick="toggleRotacion()">⏸️ Pausar</button>
+      <button onclick="siguienteVideo()">⏭️ Siguiente</button>
+    </div>
+
+    <!-- 🔥 NUEVO: Disparador de Doble Fullscreen -->
+    <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:.6rem;">
+      <input id="dualUrl1" type="url" placeholder="https://sitio-izquierdo.com" style="flex:1; min-width:220px; padding:.5rem;">
+      <input id="dualUrl2" type="url" placeholder="https://sitio-derecho.com" style="flex:1; min-width:220px; padding:.5rem;">
+      <button onclick="abrirDesdeInputsDoble()">⛶ Doble Fullscreen</button>
+    </div>
+
+    <input type="text" id="buscador" placeholder="Buscar canal..." />
+    <input type="file" id="cargarArchivo" accept=".json,.m3u8,.m3u" />
+    <button onclick="cargarCanalesInternos()">🎞️ Cargar Canales Internos</button>
+    <button onclick="mostrarFavoritos()">📁 Ver Favoritos</button>
+    <button onclick="exportarFavoritos()">💾 Exportar Favoritos</button>
+    <button onclick="desbloquearAdulto()">🔐🔑 Desbloquear Adultos</button>
+  </header>
+
+  <main>
+    <div class="player-grid">
+      <!-- MONITOR 1 -->
+      <div>
+        <div class="player-container" data-index="0"><video id="player1" controls></video></div>
+        <div class="botones-panel">
+          <button onclick="agregarAFavoritos(0)">⭐ Guardar</button>
+          <button onclick="iniciarAleatorio(0)">🎲 Aleatorio</button>
+          <button onclick="detenerAleatorio(0)">⏹️ Detener</button>
+          <button onclick="reproducirDesdeBusqueda(0)">▶️ YouTube</button>
+        </div>
+        <div class="botones-panel">
+          <select id="siteSelect0" multiple size="5" class="site-select"></select>
+          <div class="site-controls">
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="splitMode0" checked> Vista dividida (si hay varios)
+            </label>
+            <button onclick="cargarGraficoTV(0)">🌐 Abrir sitios</button>
+            <button onclick="guardarSeleccionSitios(0)">💾 Guardar selección</button>
+            <button onclick="limpiarSeleccionSitios(0)">🧹 Limpiar</button>
+          </div>
+        </div>
+        <div class="botones-panel">
+          <input type="text" id="symbolInput0" placeholder="Símbolo (ej: EURUSD)" style="flex: 1; padding: 0.5rem;" />
+          <button onclick="cargarGraficoTV(0)">📈 Gráfico</button>
+          <button onclick="quitarGraficoTV(0)">🗑️ Quitar</button>
+        </div>
+      </div>
+
+      <!-- MONITOR 2 -->
+      <div>
+        <div class="player-container" data-index="1"><video id="player2" controls></video></div>
+        <div class="botones-panel">
+          <button onclick="agregarAFavoritos(1)">⭐ Guardar</button>
+          <button onclick="iniciarAleatorio(1)">🎲 Aleatorio</button>
+          <button onclick="detenerAleatorio(1)">⏹️ Detener</button>
+          <button onclick="reproducirDesdeBusqueda(1)">▶️ YouTube</button>
+        </div>
+        <div class="botones-panel">
+          <select id="siteSelect1" multiple size="5" class="site-select"></select>
+          <div class="site-controls">
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="splitMode1" checked> Vista dividida (si hay varios)
+            </label>
+            <button onclick="cargarGraficoTV(1)">🌐 Abrir sitios</button>
+            <button onclick="guardarSeleccionSitios(1)">💾 Guardar selección</button>
+            <button onclick="limpiarSeleccionSitios(1)">🧹 Limpiar</button>
+          </div>
+        </div>
+        <div class="botones-panel">
+          <input type="text" id="symbolInput1" placeholder="Símbolo (ej: EURUSD)" style="flex: 1; padding: 0.5rem;" />
+          <button onclick="cargarGraficoTV(1)">📈 Gráfico</button>
+          <button onclick="quitarGraficoTV(1)">🗑️ Quitar</button>
+        </div>
+      </div>
+
+      <!-- MONITOR 3 -->
+      <div>
+        <div class="player-container" data-index="2"><video id="player3" controls></video></div>
+        <div class="botones-panel">
+          <button onclick="agregarAFavoritos(2)">⭐ Guardar</button>
+          <button onclick="iniciarAleatorio(2)">🎲 Aleatorio</button>
+          <button onclick="detenerAleatorio(2)">⏹️ Detener</button>
+          <button onclick="reproducirDesdeBusqueda(2)">▶️ YouTube</button>
+        </div>
+        <div class="botones-panel">
+          <select id="siteSelect2" multiple size="5" class="site-select"></select>
+          <div class="site-controls">
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="splitMode2" checked> Vista dividida (si hay varios)
+            </label>
+            <button onclick="cargarGraficoTV(2)">🌐 Abrir sitios</button>
+            <button onclick="guardarSeleccionSitios(2)">💾 Guardar selección</button>
+            <button onclick="limpiarSeleccionSitios(2)">🧹 Limpiar</button>
+          </div>
+        </div>
+        <div class="botones-panel">
+          <input type="text" id="symbolInput2" placeholder="Símbolo (ej: EURUSD)" style="flex: 1; padding: 0.5rem;" />
+          <button onclick="cargarGraficoTV(2)">📈 Gráfico</button>
+          <button onclick="quitarGraficoTV(2)">🗑️ Quitar</button>
+        </div>
+      </div>
+
+      <!-- MONITOR 4 -->
+      <div>
+        <div class="player-container" data-index="3"><video id="player4" controls></video></div>
+        <div class="botones-panel">
+          <button onclick="agregarAFavoritos(3)">⭐ Guardar</button>
+          <button onclick="iniciarAleatorio(3)">🎲 Aleatorio</button>
+          <button onclick="detenerAleatorio(3)">⏹️ Detener</button>
+          <button onclick="reproducirDesdeBusqueda(3)">▶️ YouTube</button>
+        </div>
+        <div class="botones-panel">
+          <select id="siteSelect3" multiple size="5" class="site-select"></select>
+          <div class="site-controls">
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" id="splitMode3" checked> Vista dividida (si hay varios)
+            </label>
+            <button onclick="cargarGraficoTV(3)">🌐 Abrir sitios</button>
+            <button onclick="guardarSeleccionSitios(3)">💾 Guardar selección</button>
+            <button onclick="limpiarSeleccionSitios(3)">🧹 Limpiar</button>
+          </div>
+        </div>
+        <div class="botones-panel">
+          <input type="text" id="symbolInput3" placeholder="Símbolo (ej: EURUSD)" style="flex: 1; padding: 0.5rem;" />
+          <button onclick="cargarGraficoTV(3)">📈 Gráfico</button>
+          <button onclick="quitarGraficoTV(3)">🗑️ Quitar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modales -->
+  <div class="modal" id="modalFavoritos">
+    <div class="modal-content">
+      <h3>🎯 Favoritos</h3>
+      <ul id="listaFavoritos"></ul>
+      <button onclick="cerrarModal()">Cerrar</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalPantalla">
+    <div class="modal-content">
+      <h3>🖥️ ¿En qué pantalla quieres ver este canal?</h3>
+      <div style="display: flex; gap: 1rem; justify-content: center; margin: 1rem 0;">
+        <button onclick="reproducirEnPantallaSeleccionada(0)">Pantalla 1</button>
+        <button onclick="reproducirEnPantallaSeleccionada(1)">Pantalla 2</button>
+        <button onclick="reproducirEnPantallaSeleccionada(2)">Pantalla 3</button>
+        <button onclick="reproducirEnPantallaSeleccionada(3)">Pantalla 4</button>
+      </div>
+      <button onclick="cerrarModalPantalla()">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- ====== OVERLAY: MONITOR DOBLE ====== -->
+  <div id="wrapper-doble">
+    <div id="controles-doble">
+      <button onclick="salirPantallaCompletaSimulada('wrapper-doble')">✖ Salir</button>
+      <button onclick="activarPantallaCompletaSimulada('wrapper-doble')">⛶ Re-entrar</button>
+    </div>
+    <div id="monitor-doble">
+      <iframe id="site1" title="Sitio 1"></iframe>
+      <iframe id="site2" title="Sitio 2"></iframe>
+    </div>
+  </div>
+  <!-- ===================================== -->
+
+  <!-- HUD estado -->
+  <div id="statusBox">M3U Loader: …</div>
+
+  <!-- Librería HLS -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <script>
+    /* ================== HUD de estado ================== */
+    const log = (...a) => { console.log('[M3U]', ...a); const box = document.getElementById('statusBox'); box.innerHTML = (box.innerHTML + '<br>' + a.map(String).join(' ')).slice(-2000); };
+
+    /* ================== Carrusel ================== */
+    function scrollCarrusel(direccion) {
+      const carrusel = document.getElementById("canales-inferiores");
+      const cantidad = 300 * direccion;
+      carrusel.scrollBy({ left: cantidad, behavior: "smooth" });
+    }
+
+    /* ================== Parser M3U tolerante ================== */
+    function parseM3U(text) {
+      const clean = (text || '').replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+      const lines = clean.split('\n');
+      const out = [];
+      for (let i=0;i<lines.length;i++) {
+        const line = lines[i].trim();
+        if (!line || line.startsWith('#EXTM3U')) continue;
+
+        if (line.startsWith('#EXTINF')) {
+          let name = 'Canal sin nombre';
+          const commaIdx = line.indexOf(',');
+          if (commaIdx !== -1 && commaIdx < line.length-1) {
+            name = line.slice(commaIdx+1).trim() || name;
+          }
+          const url = (lines[i+1] || '').trim();
+          if (url && /^https?:\/\//i.test(url)) {
+            out.push({ nombre: name, url });
+            i++;
+          }
+          continue;
+        }
+        if (/^https?:\/\//i.test(line)) {
+          out.push({ nombre: line.split('/').slice(-1)[0] || 'Canal', url: line });
+        }
+      }
+      return out;
+    }
+
+    /* ================== Render & estado ================== */
+    let canalSeleccionado = null;
+    let listaOriginalCanales = [];
+
+    function mostrarCanales(canales, guardarOriginal = false) {
+      if (guardarOriginal) listaOriginalCanales = canales;
+      const contenedor = document.getElementById("canales-inferiores");
+      contenedor.innerHTML = "";
+      if (!canales.length) {
+        contenedor.innerHTML = '<div class="canal" style="background:#f88;color:#000">No se cargaron canales</div>';
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      canales.forEach((canal) => {
+        const div = document.createElement("div");
+        div.className = "canal";
+        div.textContent = canal.nombre || 'Canal';
+        div.setAttribute('data-url', canal.url);
+        frag.appendChild(div);
+      });
+      contenedor.appendChild(frag);
+      log('✅ Carrusel renderizado:', canales.length, 'canales');
+    }
+
+    // Click delegado carrusel
+    document.getElementById('canales-inferiores').addEventListener('click', (e) => {
+      const item = e.target.closest('.canal');
+      if (!item) return;
+      const url = item.getAttribute('data-url');
+      if (!url) return;
+      mostrarModalPantalla(url);
+    });
+
+    /* ================== Modal & reproducción ================== */
+    function mostrarModalPantalla(url) {
+      canalSeleccionado = url;
+      document.getElementById("modalPantalla").style.display = "flex";
+    }
+    function cerrarModalPantalla() {
+      document.getElementById("modalPantalla").style.display = "none";
+      canalSeleccionado = null;
+    }
+    function reproducirEnPantallaSeleccionada(pantallaIndex) {
+      if (canalSeleccionado) {
+        const container = document.querySelector(`.player-container[data-index='${pantallaIndex}']`);
+        container.innerHTML = `<video id="player${pantallaIndex + 1}" controls></video>`;
+        reproducirCanal(canalSeleccionado, pantallaIndex);
+      }
+      cerrarModalPantalla();
+    }
+    function reproducirCanal(url, playerIndex) {
+      const player = document.getElementById(`player${playerIndex + 1}`);
+      if (!player) return;
+      if (player.hlsInstance) { try { player.hlsInstance.destroy(); } catch (e) {} }
+
+      if (window.Hls && Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(player);
+        player.hlsInstance = hls;
+        hls.on(Hls.Events.MANIFEST_PARSED, () => player.play().catch(()=>{}));
+        hls.on(Hls.Events.ERROR, (e,data)=> log('HLS error', data?.type, data?.details || ''));
+      } else if (player.canPlayType('application/vnd.apple.mpegurl')) {
+        player.src = url;
+        player.addEventListener('loadedmetadata', () => player.play().catch(()=>{}), { once:true });
+      } else {
+        alert("Tu navegador no soporta la reproducción de este canal.");
+      }
+    }
+
+    /* ================== Búsqueda ================== */
+    function filtrarCanales() {
+      const texto = (document.getElementById("buscador").value || '').toLowerCase();
+      const filtrados = listaOriginalCanales.filter(c => (c.nombre||'').toLowerCase().includes(texto));
+      mostrarCanales(filtrados);
+    }
+    document.getElementById("buscador").addEventListener("input", filtrarCanales);
+
+    /* ================== Carga manual (input file) ================== */
+    document.getElementById('cargarArchivo').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const ext = file.name.split('.').pop().toLowerCase();
+      const text = await file.text();
+
+      if (ext === 'json') {
+        try {
+          const data = JSON.parse(text);
+          if (Array.isArray(data)) {
+            const canales = data.map(c => ({ nombre: c.nombre || c.name || 'Canal', url: c.url }));
+            mostrarCanales(canales, true);
+            log('📤 Cargado JSON con', canales.length, 'canales');
+          } else {
+            alert('JSON inválido: debe ser un array de {nombre,url}');
+          }
+        } catch (err) {
+          alert('Error al leer el JSON');
+        }
+      } else {
+        const canales = parseM3U(text);
+        mostrarCanales(canales, true);
+        log('📤 Cargado M3U con', canales.length, 'canales');
+      }
+      e.target.value = '';
+    });
+
+    /* ================== Carga interna (botón) ================== */
+    async function cargarCanalesInternos() { await loadM3UFiles(true); }
+
+    /* ================== Auto-load de M3U ================== */
+    const M3U_FILES = ['update2.m3u','update.m3u','Country Brazil.m3u'];
+
+    async function fetchTextSafe(path) {
+      const url = encodeURI(path.trim());
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const txt = await res.text();
+        log('📥 OK', url, `(${txt.length} bytes)`);
+        return { ok:true, url, text:txt };
+      } catch (err) {
+        log('❌ Fetch fail', url, String(err));
+        return { ok:false, url, error: String(err) };
+      }
+    }
+
+    async function loadM3UFiles(fromButton=false) {
+      document.getElementById('statusBox').innerHTML = fromButton ? 'Cargando listas (botón)…' : 'Auto-cargando listas…';
+      const results = await Promise.all(M3U_FILES.map(fetchTextSafe));
+
+      const canales = [];
+      let errores = 0;
+      for (const r of results) {
+        if (r.ok) {
+          const parsed = parseM3U(r.text);
+          log('🔎 Parse', r.url, '→', parsed.length, 'canales');
+          canales.push(...parsed);
+        } else {
+          errores++;
+        }
+      }
+
+      if (!canales.length) {
+        log('⚠️ Sin canales. DEMO fallback.');
+        mostrarCanales([
+          { nombre:'DEMO Canal HLS 1', url:'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8' },
+          { nombre:'DEMO Big Buck Bunny', url:'https://test-streams.mux.dev/bbb-abr/bbb.m3u8' },
+        ], true);
+        document.getElementById('statusBox').innerHTML += '<br>⚠️ No se pudieron cargar tus .m3u. Revisa nombres/rutas y CORS.';
+      } else {
+        mostrarCanales(canales, true);
+        document.getElementById('statusBox').innerHTML += `<br>✅ Cargados ${canales.length} canales (${errores} errores)`;
+      }
+    }
+
+    /* ================== YouTube ================== */
+    let apiKey = "AIzaSyA4NpwgJmEzBGGTzFFjShyrtWICgSSml-I";
+    let rotationInterval = null;
+    let currentVideoIndex = 0;
+    let youtubeResults = [];
+    let isPaused = false;
+
+    function buscarYT() {
+      const q = document.getElementById("youtubeSearch").value.trim();
+      if (!q) return alert("Escribe una búsqueda.");
+      fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=40&q=${encodeURIComponent(q)}&key=${apiKey}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.items?.length) return alert("No se encontraron resultados.");
+          youtubeResults = data.items;
+          currentVideoIndex = 0;
+          reproducirVideoActual();
+          iniciarRotacion();
+        })
+        .catch(err => { console.error("Error YouTube:", err); alert("Error al buscar videos."); });
+    }
+    function reproducirVideoActual() {
+      const video = youtubeResults[currentVideoIndex];
+      if (!video) return;
+      const videoId = video.id.videoId;
+      const iframe = document.createElement("iframe");
+      iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0`;
+      iframe.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+      iframe.allowFullscreen = true;
+      const container = document.querySelector(".player-container[data-index='0']");
+      container.innerHTML = "";
+      container.appendChild(iframe);
+    }
+    function iniciarRotacion() { detenerRotacion(); rotationInterval = setInterval(() => { if (!isPaused) siguienteVideo(); }, 3 * 60 * 1000); }
+    function detenerRotacion() { if (rotationInterval) clearInterval(rotationInterval); }
+    function toggleRotacion() { isPaused = !isPaused; alert(isPaused ? "⏸️ Rotación pausada." : "▶️ Rotación reanudada."); }
+    function siguienteVideo() { currentVideoIndex = (currentVideoIndex + 1) % youtubeResults.length; reproducirVideoActual(); }
+
+    /* ================== TradingView / sitios por monitor ================== */
+    const FAVORITE_SITES = [
+      { label: "Central App's", url: "https://cuervo-123.github.io/GLOBALTV4YOUPLUS/" },
+      { label: "Global country Tv App", url: "https://cuervo-123.github.io/tv4you/" },
+      { label: "Logo full acces app", url: "https://cuervo-123.github.io/mi-tv-station/" },
+      { label: "4 monitors pro app", url: "https://cuervo-123.github.io/GLOBALTV4YOU/" },
+      { label: "Karaoke app pro", url: "https://cuervo-123.github.io/Editor-iptv-Plus/" },
+      { label: "Karaoke app pro", url: "https://cuervo-123.github.io/Editor-iptv-Plus/" },
+      { label: "x app", url: "https://wap.tizam.club/fil_my_dlya_vzroslyh/podrostki_18/ryzhen_kie_ochen_seksual_ny_5/" },
+      { label: "DJ App", url: "https://cuervo-123.github.io/GLOBALTV4YOUPLUS/" },
+      { label: "All Functions pro", url: "https://cuervo-123.github.io/mi-tv-station-v-10.1/" },
+      { label: "Add to search bar (Firefox)", url: "https://addons.mozilla.org/en-US/firefox/addon/add-to-search-bar/" }
+    ];
+    const LS_KEY = (idx) => `siteSelection:${idx}`;
+    const normalizeUrl = (u) => { if (!u) return ""; let url = u.trim(); if (!/^https?:\/\//i.test(url)) url = "https://" + url.replace(/^\/+/, ""); return url; };
+
+    function initSitePicker(index) {
+      const select = document.getElementById(`siteSelect${index}`);
+      if (!select) return;
+      select.innerHTML = FAVORITE_SITES.map(s => `<option value="${s.url}">${s.label} — ${s.url}</option>`).join("");
+      const saved = JSON.parse(localStorage.getItem(LS_KEY(index)) || "[]");
+      Array.from(select.options).forEach(opt => { if (saved.includes(opt.value)) opt.selected = true; });
+    }
+    function guardarSeleccionSitios(index) {
+      const select = document.getElementById(`siteSelect${index}`);
+      const seleccion = Array.from(select.selectedOptions).map(o => o.value);
+      localStorage.setItem(LS_KEY(index), JSON.stringify(seleccion));
+      alert("Selección guardada ✅");
+    }
+    function limpiarSeleccionSitios(index) {
+      const select = document.getElementById(`siteSelect${index}`);
+      Array.from(select.options).forEach(o => (o.selected = false));
+      localStorage.removeItem(LS_KEY(index));
+    }
+    function renderIframesInContainer(index, urls) {
+      const container = document.querySelector(`.player-container[data-index='${index}']`);
+      if (!container) return;
+      const cleanUrls = urls.map(normalizeUrl).filter(Boolean);
+      if (!cleanUrls.length) return alert("Selecciona al menos 1 sitio.");
+      const split = document.getElementById(`splitMode${index}`)?.checked && cleanUrls.length > 1;
+
+      if (split) {
+        const n = cleanUrls.length;
+        let cols = 2; if (n === 3) cols = 3; if (n >= 4) cols = 3;
+        const gridStyle = `grid-template-columns: repeat(${cols}, 1fr); grid-auto-rows: minmax(200px, 1fr);`;
+        container.innerHTML = `<div class="grid-split" style="${gridStyle}; width:100%; height:100%;">${cleanUrls.map(u => `
+          <iframe src="${u}" style="width:100%; height:100%; border:0;" frameborder="0" scrolling="auto" allow="fullscreen; clipboard-read; clipboard-write"></iframe>`).join("")}
+        </div>`;
+      } else if (cleanUrls.length === 1) {
+        container.innerHTML = `<iframe id="iframe-${index}-0" src="${cleanUrls[0]}" style="width:100%; height:100%; border:0;" frameborder="0" scrolling="auto" allow="fullscreen; clipboard-read; clipboard-write"></iframe>`;
+      } else {
+        const tabs = cleanUrls.map((u, i) => `<button class="tab ${i===0?'active':''}" data-tab="${i}" onclick="activarTab(${index}, ${i})">${new URL(u).hostname}</button>`).join("");
+        const iframes = cleanUrls.map((u, i) => `<iframe id="iframe-${index}-${i}" src="${u}" style="width:100%; height:calc(100% - 46px); border:0; display:${i===0?'block':'none'};" frameborder="0" scrolling="auto" allow="fullscreen; clipboard-read; clipboard-write"></iframe>`).join("");
+        container.innerHTML = `<div class="tabs" id="tabs-${index}">${tabs}</div><div style="width:100%; height:calc(100% - 46px);">${iframes}</div>`;
+      }
+    }
+    function activarTab(index, i) {
+      const tabsWrap = document.getElementById(`tabs-${index}`); if (!tabsWrap) return;
+      tabsWrap.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+      const target = tabsWrap.querySelector(`.tab[data-tab='${i}']`); if (target) target.classList.add("active");
+      const container = document.querySelector(`.player-container[data-index='${index}']`); if (!container) return;
+      container.querySelectorAll("iframe[id^='iframe-']").forEach((f, idx) => { f.style.display = (idx === i) ? "block" : "none"; });
+    }
+    function cargarGraficoTV(index) {
+      const select = document.getElementById(`siteSelect${index}`);
+      const seleccion = select ? Array.from(select.selectedOptions).map(o => o.value) : [];
+      const urls = (seleccion.length > 0) ? seleccion : ["https://cuervo-123.github.io/GLOBALTV4YOUPLUS/"];
+      renderIframesInContainer(index, urls);
+    }
+    function quitarGraficoTV(index) {
+      const container = document.querySelector(`.player-container[data-index='${index}']`);
+      container.innerHTML = `<video id="player${index + 1}" controls></video>`;
+    }
+    function toggleFullscreenGrafico(index) {
+      const container = document.querySelector(`.player-container[data-index='${index}']`);
+      const iframe = container.querySelector('iframe');
+      if (!iframe) return alert("No hay gráfico para esta pantalla.");
+      const isFullscreen = iframe.classList.toggle("fullscreen-iframe");
+      const boton = document.getElementById(`btnFullscreen${index}`);
+      if (boton) boton.textContent = isFullscreen ? "❌ Salir de Fullscreen" : "🔍 Fullscreen";
+      let botonSalir = document.getElementById(`btnExitFullscreen${index}`);
+      if (isFullscreen) {
+        if (!botonSalir) {
+          botonSalir = document.createElement("button");
+          botonSalir.id = `btnExitFullscreen${index}`;
+          botonSalir.textContent = "❌ Salir de Fullscreen";
+          botonSalir.className = "fullscreen-iframe-button";
+          botonSalir.onclick = () => toggleFullscreenGrafico(index);
+          document.body.appendChild(botonSalir);
+        }
+      } else { if (botonSalir) botonSalir.remove(); }
+    }
+
+    /* ====== MODO DOBLE: Overlay que abre 2 sitios en paralelo ====== */
+    function activarPantallaCompletaSimulada(idContenedor) {
+      const el = document.getElementById(idContenedor);
+      el.classList.add('fullscreen-simulado');
+      el.style.display = 'flex';
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    }
+    function salirPantallaCompletaSimulada(idContenedor) {
+      const el = document.getElementById(idContenedor);
+      el.classList.remove('fullscreen-simulado');
+      el.style.display = 'none';
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    }
+    /** Abre dos sitios (url1 y url2) y marca 'cargado' al terminar cada uno */
+    function abrirDosSitios(url1, url2) {
+      const f1 = document.getElementById('site1');
+      const f2 = document.getElementById('site2');
+      // limpiar estado visual
+      f1.classList.remove('cargado'); f2.classList.remove('cargado');
+      // listeners de carga para mostrar ambos con fade-in
+      f1.addEventListener('load', () => f1.classList.add('cargado'), { once: true });
+      f2.addEventListener('load', () => f2.classList.add('cargado'), { once: true });
+      // asignar URLs
+      f1.src = (url1 || '').trim();
+      f2.src = (url2 || '').trim();
+      activarPantallaCompletaSimulada('wrapper-doble');
+    }
+    function abrirDesdeInputsDoble() {
+      const u1 = document.getElementById('dualUrl1').value.trim();
+      const u2 = document.getElementById('dualUrl2').value.trim();
+      if (!u1 || !u2) return alert('Escribe ambas URLs.');
+      abrirDosSitios(u1, u2);
+    }
+    // ESC para cerrar
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') salirPantallaCompletaSimulada('wrapper-doble'); });
+
+    /* ================== INIT ================== */
+    document.addEventListener("DOMContentLoaded", () => {
+      [0,1,2,3].forEach(initSitePicker);
+      loadM3UFiles(false);
+
+      // Botones Fullscreen por monitor
+      for (let i = 0; i < 4; i++) {
+        const paneles = document.querySelectorAll(".botones-panel")[i * 3 + 2];
+        if (paneles) {
+          const botonFull = document.createElement("button");
+          botonFull.textContent = "🔍 Fullscreen";
+          botonFull.id = `btnFullscreen${i}`;
+          botonFull.onclick = () => toggleFullscreenGrafico(i);
+          paneles.appendChild(botonFull);
+        }
+      }
+    });
+
+    /* ================== Placeholders de favoritos ================== */
+    function agregarAFavoritos(idx){ alert('Favoritos: implementar según tu estructura de datos.'); }
+    function iniciarAleatorio(idx){ alert('Aleatorio: implementar según tu lógica.'); }
+    function detenerAleatorio(idx){ alert('Detener aleatorio: implementar.'); }
+    function reproducirDesdeBusqueda(idx){ alert('YouTube por monitor: adaptar si quieres búsquedas por monitor.'); }
+    function mostrarFavoritos(){ document.getElementById('modalFavoritos').style.display='flex'; }
+    function cerrarModal(){ document.getElementById('modalFavoritos').style.display='none'; }
+    function exportarFavoritos(){ alert('Exportar favoritos: implementar según tu formato.'); }
+    function desbloquearAdulto(){ alert('Adultos: implementar PIN/clave.'); }
+  </script>
+</body>
+</html>
